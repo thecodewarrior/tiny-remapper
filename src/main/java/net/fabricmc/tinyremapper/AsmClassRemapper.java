@@ -38,9 +38,12 @@ import org.objectweb.asm.commons.Remapper;
 class AsmClassRemapper extends ClassRemapper {
 
 	private final boolean renameInvalidLocals;
+	private String currentMethodName = "", currentMethodDescriptor = "";
+	private final AsmRemapper asmRemapper;
 
 	public AsmClassRemapper(ClassVisitor cv, AsmRemapper remapper, boolean renameInvalidLocals) {
 		super(cv, remapper);
+		this.asmRemapper = remapper;
 		this.renameInvalidLocals = renameInvalidLocals;
 	}
 
@@ -50,8 +53,15 @@ class AsmClassRemapper extends ClassRemapper {
 	}
 
 	@Override
+	public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+	    currentMethodName = name;
+	    currentMethodDescriptor = descriptor;
+		return super.visitMethod(access, name, descriptor, signature, exceptions);
+	}
+
+	@Override
 	protected MethodVisitor createMethodRemapper(MethodVisitor mv) {
-		return new AsmMethodRemapper(mv, remapper, className, renameInvalidLocals);
+		return new AsmMethodRemapper(mv, asmRemapper, className, currentMethodName, currentMethodDescriptor, renameInvalidLocals);
 	}
 
 	private static class AsmFieldRemapper extends FieldRemapper {
@@ -71,9 +81,15 @@ class AsmClassRemapper extends ClassRemapper {
 	}
 
 	private static class AsmMethodRemapper extends MethodRemapper {
-		public AsmMethodRemapper(MethodVisitor methodVisitor, Remapper remapper, String className, boolean renameInvalidLocals) {
+		private final String methodName, methodDescriptor;
+		private final AsmRemapper asmRemapper;
+
+		public AsmMethodRemapper(MethodVisitor methodVisitor, AsmRemapper remapper, String className, String methodName, String methodDescriptor, boolean renameInvalidLocals) {
 			super(methodVisitor, remapper);
 
+			this.asmRemapper = remapper;
+			this.methodName = methodName;
+			this.methodDescriptor = methodDescriptor;
 			this.className = className;
 			this.renameInvalidLocals = renameInvalidLocals;
 		}
@@ -98,11 +114,14 @@ class AsmClassRemapper extends ClassRemapper {
 			return AsmClassRemapper.createAsmAnnotationRemapper(descriptor, super.visitParameterAnnotation(parameter, descriptor, visible), remapper);
 		}
 
+
 		@Override
 		public void visitLocalVariable(String name, String descriptor, String signature, Label start, Label end, int index) {
 			if (mv == null) return;
 
 			descriptor = remapper.mapDesc(descriptor);
+
+			name = asmRemapper.mapVariableName(className, methodName, methodDescriptor, name, index);
 
 			if (renameInvalidLocals && !isValidJavaIdentifier(name)) {
 				Type type = Type.getType(descriptor);

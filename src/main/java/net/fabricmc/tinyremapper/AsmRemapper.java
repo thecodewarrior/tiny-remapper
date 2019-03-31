@@ -28,6 +28,12 @@ class AsmRemapper extends Remapper {
 		this.remapper = remapper;
 	}
 
+	public String mapVariableName(String owner, String methodName, String methodDesc, String variableName, int variableIndex) {
+		String ret = remapper.variableMap.get(owner + "/" + methodName + methodDesc + "#" + variableIndex);
+
+		return ret != null ? ret : variableName;
+	}
+
 	@Override
 	public String map(String typeName) {
 		String ret = remapper.classMap.get(typeName);

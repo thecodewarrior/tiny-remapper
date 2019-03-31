@@ -109,7 +109,7 @@ public class TinyRemapper {
 			TinyRemapper remapper = new TinyRemapper(threadCount, forcePropagation, propagatePrivate, removeFrames, ignoreConflicts, resolveMissing, rebuildSourceFilenames, renameInvalidLocals);
 
 			for (IMappingProvider provider : mappingProviders) {
-				provider.load(remapper.classMap, remapper.fieldMap, remapper.methodMap);
+				provider.load(remapper.classMap, remapper.fieldMap, remapper.methodMap, remapper.variableMap);
 			}
 
 			return remapper;
@@ -798,6 +798,7 @@ public class TinyRemapper {
 	final Map<String, String> classMap = new HashMap<>();
 	final Map<String, String> methodMap = new HashMap<>();
 	final Map<String, String> fieldMap = new HashMap<>();
+	final Map<String, String> variableMap = new HashMap<>();
 	final Map<String, RClass> nodes = new HashMap<>();
 	private final Map<TypedMember, Set<String>> conflicts = new ConcurrentHashMap<>();
 	private final int threadCount;

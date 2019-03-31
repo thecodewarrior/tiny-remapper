@@ -57,6 +57,32 @@ public final class TinyUtils {
 		}
 	}
 
+	public static class VariableMapping {
+		public final String owner, methodName, desc, name;
+
+		public VariableMapping(String owner, String methodName, String desc, String name) {
+			this.owner = owner;
+			this.methodName = methodName;
+			this.desc = desc;
+			this.name = name;
+		}
+
+		@Override
+		public boolean equals(Object other) {
+			if (other == null || !other.getClass().equals(VariableMapping.class)) {
+				return false;
+			} else {
+				VariableMapping otherM = (VariableMapping) other;
+				return owner.equals(otherM.owner) && methodName.equals(otherM.methodName) && desc.equals(otherM.desc) && name.equals(otherM.name);
+			}
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(owner, methodName, desc, name);
+		}
+	}
+
 	private static class SimpleClassMapper extends Remapper {
 		final Map<String, String> classMap;
 
@@ -75,9 +101,9 @@ public final class TinyUtils {
 	}
 
 	public static IMappingProvider createTinyMappingProvider(final Path mappings, String fromM, String toM) {
-		return (classMap, fieldMap, methodMap) -> {
+		return (classMap, fieldMap, methodMap, variableMap) -> {
 			try (BufferedReader reader = getMappingReader(mappings.toFile())) {
-				readInternal(reader, fromM, toM, classMap, fieldMap, methodMap);
+				readInternal(reader, fromM, toM, classMap, fieldMap, methodMap, variableMap);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
@@ -97,9 +123,9 @@ public final class TinyUtils {
 	}
 
 	public static IMappingProvider createTinyMappingProvider(final BufferedReader reader, String fromM, String toM) {
-		return (classMap, fieldMap, methodMap) -> {
+		return (classMap, fieldMap, methodMap, variableMap) -> {
 			try {
-				readInternal(reader, fromM, toM, classMap, fieldMap, methodMap);
+				readInternal(reader, fromM, toM, classMap, fieldMap, methodMap, variableMap);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
@@ -108,20 +134,27 @@ public final class TinyUtils {
 		};
 	}
 
-	private static void readInternal(BufferedReader reader, String fromM, String toM, Map<String, String> classMap, Map<String, String> fieldMap, Map<String, String> methodMap) throws IOException {
+	private static void readInternal(BufferedReader reader, String fromM, String toM,
+									 Map<String, String> classMap,
+									 Map<String, String> fieldMap,
+									 Map<String, String> methodMap,
+									 Map<String, String> variableMap) throws IOException {
 		TinyUtils.read(reader, fromM, toM, (classFrom, classTo) -> {
 			classMap.put(classFrom, classTo);
 		}, (fieldFrom, fieldTo) -> {
 			fieldMap.put(fieldFrom.owner + "/" + fieldFrom.name + ";;" + fieldFrom.desc, fieldTo.owner + "/" + fieldTo.name);
 		}, (methodFrom, methodTo) -> {
 			methodMap.put(methodFrom.owner + "/" + methodFrom.name + methodFrom.desc, methodTo.owner + "/" + methodTo.name);
+		}, (variableFrom, variableTo) -> {
+			variableMap.put(variableFrom.owner + "/" + variableFrom.methodName + variableFrom.desc + "#" + variableFrom.name, variableTo);
 		});
 	}
 
 	public static void read(BufferedReader reader, String from, String to,
 							BiConsumer<String, String> classMappingConsumer,
 							BiConsumer<Mapping, Mapping> fieldMappingConsumer,
-							BiConsumer<Mapping, Mapping> methodMappingConsumer)
+							BiConsumer<Mapping, Mapping> methodMappingConsumer,
+							BiConsumer<VariableMapping, String> variableMappingConsumer)
 			throws IOException {
 		String[] header = reader.readLine().split("\t");
 		if (header.length <= 1
@@ -175,6 +208,16 @@ public final class TinyUtils {
 				methodMappingConsumer.accept(
 						new Mapping(owner, splitLine[3 + fromIndex], desc),
 						new Mapping(tOwner, splitLine[3 + toIndex], tDesc)
+				);
+			} else if ("VARIABLE".equals(splitLine[0])) {
+				String owner = obfFrom.getOrDefault(splitLine[1], splitLine[1]);
+				String desc = descObfFrom.mapMethodDesc(splitLine[2]);
+				String tOwner = obfTo.getOrDefault(splitLine[1], splitLine[1]);
+				String tDesc = descObfTo.mapMethodDesc(splitLine[2]);
+				String methodName = splitLine[3];
+				variableMappingConsumer.accept(
+						new VariableMapping(owner, methodName, desc, splitLine[4 + fromIndex]),
+						splitLine[4 + toIndex]
 				);
 			}
 		}
